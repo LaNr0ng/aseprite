@@ -110,9 +110,7 @@ public:
                      m_image->height());
   }
   int getScanlineSize() const override {
-    return doc::calculate_rowstride_bytes(
-      m_image->pixelFormat(),
-      m_image->width());
+    return m_image->widthBytes();
   }
   const uint8_t* getScanlineAddress(int y) const override {
     return m_image->getPixelAddress(0, y);
@@ -128,9 +126,8 @@ public:
                      m_tileset->grid().tileSize().h * m_tileset->size());
   }
   int getScanlineSize() const override {
-    return doc::calculate_rowstride_bytes(
-      m_tileset->sprite()->pixelFormat(),
-      m_tileset->grid().tileSize().w);
+    return bytes_per_pixel_for_colormode(m_tileset->sprite()->colorMode())
+      * m_tileset->grid().tileSize().w;
   }
   const uint8_t* getScanlineAddress(int y) const override {
     const int h = m_tileset->grid().tileSize().h;
@@ -1255,7 +1252,8 @@ static void ase_file_write_slice_chunk(FILE* f, dio::AsepriteFrameHeader* frame_
 {
   ChunkWriter chunk(f, frame_header, ASE_FILE_CHUNK_SLICE);
 
-  auto range = slice->range(fromFrame, toFrame);
+  frame_t firstFromFrame = slice->empty() ? fromFrame : slice->fromFrame();
+  auto range = slice->range(firstFromFrame, toFrame);
   ASSERT(!range.empty());
 
   int flags = 0;
@@ -1271,10 +1269,10 @@ static void ase_file_write_slice_chunk(FILE* f, dio::AsepriteFrameHeader* frame_
   fputl(0, f);                             // 4 bytes reserved
   ase_file_write_string(f, slice->name()); // slice name
 
-  frame_t frame = fromFrame;
+  frame_t frame = firstFromFrame;
   const SliceKey* oldKey = nullptr;
   for (auto key : range) {
-    if (frame == fromFrame || key != oldKey) {
+    if (frame == firstFromFrame || key != oldKey) {
       fputl(frame, f);
       fputl((int32_t)(key ? key->bounds().x: 0), f);
       fputl((int32_t)(key ? key->bounds().y: 0), f);
